@@ -1,0 +1,37 @@
+# Ambiente Virtual (VENV)
+# Essencial: Ignora a pasta com todas as bibliotecas instaladas
+venv/
+*.env
+.env
+
+# Cache e arquivos compilados do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Arquivos de Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# Arquivos de IDE e Editores
+.vscode/
+.idea/
+
+# Arquivos de Log
+*.log
+
+# Arquivos gerados por Data Science e ML (Scikit-learn / Tensorflow)
+# Modelos salvos, que geralmente são grandes e não devem ir para o Git
+*.pkl
+*.joblib
+*.h5
+*.model
+
+# Arquivos de Build/Distribuição
+dist/
+build/
+*.egg-info/
+
+# Notebooks (se você usar Jupyter)
+.ipynb_checkpoints/
