@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    image: stock-lstm-api:latest
+    container_name: stock-lstm-api
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+    volumes:
+      - ./artifacts:/app/artifacts:ro
+      - ./api:/app/api:ro
+      - ./src:/app/src:ro
+    restart: unless-stopped
