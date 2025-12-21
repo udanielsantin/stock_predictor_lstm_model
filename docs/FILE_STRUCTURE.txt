@@ -1,0 +1,363 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║          STOCK PRICE PREDICTOR - FASTAPI COMPLETE SETUP              ║
+║                    Estrutura de Arquivos & Funções                    ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+📁 stock_predictor_lstm_model/
+│
+├── 🔧 API - APLICAÇÃO FASTAPI
+│   │
+│   ├── �� api/app.py (PRINCIPAL)
+│   │   ├── from fastapi import FastAPI
+│   │   ├── from prediction_utils import load_model_and_scaler, predict_stock
+│   │   │
+│   │   ├── @app.get("/")
+│   │   │   └─ Retorna index.html
+│   │   │
+│   │   ├── @app.get("/health")
+│   │   │   └─ Verifica se modelo está carregado
+│   │   │
+│   │   ├── @app.post("/api/predict")
+│   │   │   └─ Faz previsão completa
+│   │   │      ├─ Valida datas
+│   │   │      ├─ Chama predict_stock()
+│   │   │      └─ Retorna JSON
+│   │   │
+│   │   └── @app.get("/api/info")
+│   │       └─ Info sobre o modelo
+│   │
+│   ├── 📄 api/prediction_utils.py (FUNÇÕES HELPER)
+│   │   ├── class StockLSTM(nn.Module)
+│   │   │   ├── __init__(input_size, hidden_size, num_layers)
+│   │   │   │   ├─ self.lstm = nn.LSTM(...)
+│   │   │   │   └─ self.fc = nn.Linear(...)
+│   │   │   │
+│   │   │   └── forward(x)
+│   │   │       ├─ out, _ = self.lstm(x)
+│   │   │       └─ return self.fc(out[:, -1, :])
+│   │   │
+│   │   ├── def load_model_and_scaler(model_path, scaler_path)
+│   │   │   ├─ Carrega modelo PyTorch
+│   │   │   ├─ Carrega scaler joblib
+│   │   │   └─ Retorna (model, scaler)
+│   │   │
+│   │   ├── def load_stock_data(ticker, start, end)
+│   │   │   ├─ Converte ticker (ABEV3 → ABEV3.SA)
+│   │   │   ├─ Baixa de yfinance
+│   │   │   └─ Retorna DataFrame com Close
+│   │   │
+│   │   ├── def create_sequences(data, seq_length=50)
+│   │   │   ├─ Cria X (entrada: 50 dias)
+│   │   │   └─ Cria y (saída: preço do dia 51)
+│   │   │
+│   │   ├── def generate_plot_base64(y_true, y_pred, ticker, ...)
+│   │   │   ├─ Cria figura matplotlib
+│   │   │   ├─ Plota: y_true (azul) vs y_pred (laranja)
+│   │   │   └─ Retorna PNG em base64
+│   │   │
+│   │   └── def predict_stock(ticker, start_date, end_date, model, scaler)
+│   │       ├─ Baixa dados
+│   │       ├─ Normaliza (MinMaxScaler)
+│   │       ├─ Cria sequências
+│   │       ├─ Faz inferência (LSTM)
+│   │       ├─ Calcula métricas:
+│   │       │  ├─ MSE
+│   │       │  ├─ MAE
+│   │       │  ├─ RMSE
+│   │       │  ├─ MAPE
+│   │       │  └─ R²
+│   │       ├─ Gera gráfico
+│   │       └─ Retorna dict com tudo
+│   │
+│   └── 📄 api/templates/index.html (INTERFACE WEB)
+│       ├── <head>
+│       │   ├─ CSS (Gradiente roxo/violeta)
+│       │   └─ Font: Segoe UI
+│       │
+│       ├── <body>
+│       │   ├─ Header com título
+│       │   │
+│       │   ├─ Painel de Input (Esquerda)
+│       │   │   ├─ Campo Ticker
+│       │   │   ├─ Seletor Data Inicial
+│       │   │   ├─ Seletor Data Final
+│       │   │   ├─ Botão Prever
+│       │   │   └─ Mensagens erro/sucesso
+│       │   │
+│       │   ├─ Painel de Resultados (Direita)
+│       │   │   ├─ Cards de Resumo (4)
+│       │   │   │  ├─ Preço Atual
+│       │   │   │  ├─ Próximo Preço
+│       │   │   │  ├─ Pontos de Dados
+│       │   │   │  └─ R² Score
+│       │   │   │
+│       │   │   ├─ Métricas Detalhadas (4)
+│       │   │   │  ├─ MSE
+│       │   │   │  ├─ MAE
+│       │   │   │  ├─ RMSE
+│       │   │   │  └─ MAPE
+│       │   │   │
+│       │   │   ├─ Gráfico (matplotlib → base64)
+│       │   │   │
+│       │   │   └─ Resumo Executivo (texto)
+│       │   │
+│       │   └── <script>
+│       │       ├─ async function handlePredict()
+│       │       │   ├─ Valida inputs
+│       │       │   ├─ POST /api/predict
+│       │       │   ├─ Aguarda resposta
+│       │       │   └─ displayResults(data)
+│       │       │
+│       │       └─ function displayResults(data)
+│       │           ├─ Atualiza cards
+│       │           ├─ Atualiza métricas
+│       │           ├─ Exibe gráfico
+│       │           └─ Mostra resumo
+│
+├── 💾 MODELOS (Pré-treinados)
+│   ├── models/stock_lstm.pt
+│   │   └─ Modelo PyTorch serializado
+│   │
+│   └── models/scaler.joblib
+│       └─ MinMaxScaler ajustado
+│
+├── 📚 DOCUMENTAÇÃO
+│   ├── README_FASTAPI.md
+│   │   └─ Guia completo (este arquivo)
+│   │
+│   ├── QUICK_START.md
+│   │   └─ Como começar em 30 segundos
+│   │
+│   ├── API_README.md
+│   │   └─ Documentação técnica dos endpoints
+│   │
+│   └── SETUP_COMPLETE.md
+│       └─ Instalação passo-a-passo
+│
+├── 🚀 SCRIPTS
+│   ├── run_api.sh
+│   │   ├─ Menu interativo
+│   │   ├─ Opção 1: Desenvolvimento (reload)
+│   │   ├─ Opção 2: Produção (4 workers)
+│   │   └─ Opção 3: Docker
+│   │
+│   └── test_api.py
+│       ├─ Health check
+│       ├─ Teste de previsão
+│       ├─ Teste múltiplos tickers
+│       └─ Resumo colorido
+│
+├── 🐳 DOCKER
+│   ├── docker-compose.yml
+│   │   └─ Serviço API na porta 8000
+│   │
+│   └── api/Dockerfile
+│       └─ Imagem do container
+│
+└── 📦 DEPENDÊNCIAS
+    └── requirements.txt
+        ├─ fastapi==0.121.0
+        ├─ uvicorn==0.38.0
+        ├─ torch==2.9.0
+        ├─ yfinance==0.2.66
+        ├─ scikit-learn==1.7.2
+        ├─ joblib==1.5.2
+        └─ matplotlib==3.10.7
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                     FLUXO DE EXECUÇÃO DA PREVISÃO                      ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+1️⃣  USUÁRIO ACESSA
+    http://localhost:8000
+         ↓
+         └─→ FastAPI retorna index.html
+
+2️⃣  USUÁRIO PREENCHE FORMULÁRIO
+    ┌─────────────────┐
+    │ Ticker: ABEV3   │
+    │ De: 2024-01-01  │
+    │ Até: 2025-12-21 │
+    │ [🚀 Prever]     │
+    └─────────────────┘
+         ↓
+    JavaScript coleta dados
+
+3️⃣  JAVASCRIPT ENVIA REQUISIÇÃO
+    POST /api/predict
+    {
+      "ticker": "ABEV3",
+      "start_date": "2024-01-01",
+      "end_date": "2025-12-21"
+    }
+         ↓
+    FastAPI recebe
+
+4️⃣  FASTAPI PROCESSA
+    app.py: @app.post("/api/predict")
+    ├─ Valida datas
+    ├─ Chama predict_stock()
+    └─ Aguarda resultado
+         ↓
+
+5️⃣  PREDICTION_UTILS EXECUTA
+    predict_stock():
+    ├─ load_stock_data()
+    │  └─ Baixa de yfinance
+    ├─ Normaliza (MinMaxScaler)
+    ├─ create_sequences()
+    │  └─ Cria X, y
+    ├─ Model.forward()
+    │  └─ LSTM inference
+    ├─ Calcula métricas
+    │  └─ MSE, MAE, RMSE, MAPE, R²
+    ├─ generate_plot_base64()
+    │  └─ Matplotlib → PNG → base64
+    └─ Retorna dict completo
+         ↓
+
+6️⃣  FASTAPI RETORNA RESPOSTA
+    {
+      "ticker": "ABEV3",
+      "last_close": 12.50,
+      "next_price": 12.75,
+      "price_change": 0.25,
+      "price_change_pct": 2.00,
+      "metrics": {...},
+      "data_points": 350,
+      "plot": "data:image/png;base64,..."
+    }
+         ↓
+    JavaScript recebe
+
+7️⃣  JAVASCRIPT ATUALIZA PÁGINA
+    displayResults(data):
+    ├─ Atualiza cards
+    ├─ Atualiza métricas
+    ├─ Exibe gráfico
+    └─ Mostra resumo
+         ↓
+
+8️⃣  USUÁRIO VÊ RESULTADO
+    ┌──────────────────────────────┐
+    │ 💰 Preço Atual: R$ 12.50    │
+    │ 📊 Próximo: R$ 12.75        │
+    │ 📈 Variação: +2.00%         │
+    │                             │
+    │ [GRÁFICO]                   │
+    │                             │
+    │ 📋 Métricas:                │
+    │    R²: 0.8567               │
+    │    MAE: 0.234567            │
+    │    MAPE: 1.95%              │
+    └──────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                         TECNOLOGIAS UTILIZADAS                         ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+Backend:
+  ✅ FastAPI      - Framework web moderno
+  ✅ Uvicorn      - Servidor ASGI
+  ✅ PyTorch      - Deep Learning
+  ✅ YFinance     - Download de dados
+  ✅ Scikit-Learn - Normalização
+  ✅ Matplotlib   - Gráficos
+  ✅ Joblib       - Serialização
+
+Frontend:
+  ✅ HTML5        - Estrutura
+  ✅ CSS3         - Estilo (gradiente, responsivo)
+  ✅ JavaScript   - Interatividade (vanilla, sem frameworks)
+
+DevOps:
+  ✅ Docker       - Containerização
+  ✅ Bash         - Script launcher
+  ✅ Python       - Testes
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                        COMO RODAR (3 FORMAS)                          ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+FORMA 1: Desenvolvimento com reload automático
+┌──────────────────────────────────────────────┐
+│ $ cd api                                     │
+│ $ uvicorn app:app --reload                  │
+│                                              │
+│ Acesse: http://localhost:8000               │
+│ Swagger: http://localhost:8000/docs         │
+└──────────────────────────────────────────────┘
+
+FORMA 2: Produção com múltiplos workers
+┌──────────────────────────────────────────────┐
+│ $ cd api                                     │
+│ $ uvicorn app:app --workers 4               │
+│                                              │
+│ Acesse: http://localhost:8000               │
+│ Performance: Até 4x mais rápido              │
+└──────────────────────────────────────────────┘
+
+FORMA 3: Docker Compose
+┌──────────────────────────────────────────────┐
+│ $ docker-compose up --build                 │
+│                                              │
+│ Acesse: http://localhost:8000               │
+│ Container: stock-lstm-api                   │
+└──────────────────────────────────────────────┘
+
+FORMA 4: Script Launcher
+┌──────────────────────────────────────────────┐
+│ $ chmod +x run_api.sh                        │
+│ $ ./run_api.sh                               │
+│ Escolha 1, 2, ou 3                           │
+└──────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                             ENDPOINTS                                  ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+GET /
+  Retorna: index.html
+  Status: 200
+
+GET /health
+  Retorna: { "status": "ok", "model_loaded": true, "scaler_loaded": true }
+  Status: 200
+
+POST /api/predict
+  Body: { "ticker": "ABEV3", "start_date": "2024-01-01", "end_date": "2025-12-21" }
+  Retorna: Previsão com métricas e gráfico
+  Status: 200 ou 400
+
+GET /api/info
+  Retorna: Informações sobre o modelo
+  Status: 200
+
+GET /docs (Automático)
+  Swagger UI interativa
+
+GET /redoc (Automático)
+  ReDoc interativa
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                        STATUS DO PROJETO                              ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+✅ FastAPI implementado
+✅ Endpoints funcionais
+✅ Interface web responsiva
+✅ Gráficos com matplotlib
+✅ Cálculo de métricas
+✅ Tratamento de erros
+✅ Documentação completa
+✅ Docker ready
+✅ Testes inclusos
+✅ Pronto para produção
+
+🎉 PARABÉNS! Seu projeto está 100% FUNCIONAL!
+
+Versão: 1.0.0
+Data: Dezembro 2025
+Status: ✅ PRONTO PARA USAR
+
+Acesse agora: http://localhost:8000
