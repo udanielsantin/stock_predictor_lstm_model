@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Stock Predictor</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .dashboard-header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .dashboard-header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .stat-label {
+            font-size: 1em;
+            color: #666;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            margin-bottom: 30px;
+        }
+        
+        .chart-container h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .chart-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .back-button {
+            display: inline-block;
+            padding: 12px 30px;
+            background: white;
+            color: #667eea;
+            border: 2px solid white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+        
+        .back-button:hover {
+            background: transparent;
+            color: white;
+            transform: translateX(-5px);
+        }
+        
+        .refresh-button {
+            display: inline-block;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #51cf66 0%, #2b8a3e 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s;
+            margin-left: 10px;
+        }
+        
+        .refresh-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .no-data h2 {
+            color: #666;
+            font-size: 1.8em;
+            margin-bottom: 15px;
+        }
+        
+        .no-data p {
+            color: #999;
+            font-size: 1.1em;
+        }
+        
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard-header">
+            <a href="/" class="back-button">← Voltar</a>
+            <button onclick="location.reload()" class="refresh-button">🔄 Atualizar</button>
+            <h1>📊 Dashboard de Logs</h1>
+            <p>Análise de todas as previsões realizadas</p>
+        </div>
+
+        {% if total_predictions > 0 %}
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_predictions }}</div>
+                <div class="stat-label">Total de Previsões</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" style="color: #51cf66;">{{ successful }}</div>
+                <div class="stat-label">Bem-sucedidas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" style="color: #ff6b6b;">{{ failed }}</div>
+                <div class="stat-label">Falhadas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ success_rate }}%</div>
+                <div class="stat-label">Taxa de Sucesso</div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+            {% if chart_ticker_distribution %}
+            <div class="chart-container">
+                <h2>🏢 Distribuição por Ticker</h2>
+                <img src="{{ chart_ticker_distribution }}" alt="Distribuição por Ticker">
+            </div>
+            {% endif %}
+        </div>
+
+        {% if chart_daily_predictions %}
+        <div class="chart-container">
+            <h2>📅 Previsões por Dia</h2>
+            <img src="{{ chart_daily_predictions }}" alt="Previsões por Dia">
+        </div>
+        {% endif %}
+
+        <div class="charts-grid">
+            {% if chart_execution_time %}
+            <div class="chart-container">
+                <h2>⏱️ Tempo de Execução</h2>
+                <img src="{{ chart_execution_time }}" alt="Tempo de Execução">
+            </div>
+            {% endif %}
+
+            {% if chart_r2_distribution %}
+            <div class="chart-container">
+                <h2>🎯 Distribuição de R² Score</h2>
+                <img src="{{ chart_r2_distribution }}" alt="Distribuição de R²">
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Recent Logs Table -->
+        <div class="chart-container">
+            <h2>📝 Últimas Previsões (10 mais recentes)</h2>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f8f9fa; border-bottom: 2px solid #667eea;">
+                            <th style="padding: 12px; text-align: left;">Timestamp</th>
+                            <th style="padding: 12px; text-align: left;">Ticker</th>
+                            <th style="padding: 12px; text-align: left;">Status</th>
+                            <th style="padding: 12px; text-align: right;">Tempo (s)</th>
+                            <th style="padding: 12px; text-align: right;">R² Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in recent_logs[:10] %}
+                        <tr style="border-bottom: 1px solid #e0e0e0;">
+                            <td style="padding: 12px;">{{ log.timestamp[:19] }}</td>
+                            <td style="padding: 12px; font-weight: bold;">{{ log.request.ticker }}</td>
+                            <td style="padding: 12px;">
+                                {% if log.execution.success %}
+                                <span style="color: #51cf66; font-weight: bold;">✅ Sucesso</span>
+                                {% else %}
+                                <span style="color: #ff6b6b; font-weight: bold;">❌ Falha</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 12px; text-align: right;">{{ "%.2f"|format(log.execution.duration_seconds) }}</td>
+                            <td style="padding: 12px; text-align: right;">
+                                {% if log.execution.success and log.result.metrics.R2 %}
+                                {{ "%.4f"|format(log.result.metrics.R2) }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% else %}
+        <!-- No Data Message -->
+        <div class="no-data">
+            <h2>📭 Nenhum dado disponível</h2>
+            <p>Faça algumas previsões primeiro para visualizar o dashboard.</p>
+            <br>
+            <a href="/" class="back-button">Ir para Previsões</a>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

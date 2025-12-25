@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-12-25T22:47:59.678805Z",
+  "request": {
+    "ticker": "AXIA3",
+    "start_date": "2024-12-25",
+    "end_date": "2025-12-25"
+  },
+  "execution": {
+    "duration_seconds": 0.345,
+    "success": true
+  },
+  "result": {
+    "last_close": 49.95,
+    "next_price": 47.77000045776367,
+    "price_change": -2.180000066757202,
+    "price_change_pct": -4.369999885559082,
+    "data_points": 200,
+    "metrics": {
+      "MSE": 0.00152,
+      "MAE": 0.019849,
+      "RMSE": 0.038986,
+      "MAPE": 6.21,
+      "R2": 0.9748
+    }
+  }
+}

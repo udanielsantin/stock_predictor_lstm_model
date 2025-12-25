@@ -1,11 +1,20 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import time
 import os
 from prediction_utils import load_model_and_scaler, predict_stock
+from log_utils import PredictionLogger
+from dashboard_utils import (
+    get_dashboard_data,
+    create_ticker_distribution_chart,
+    create_daily_predictions_chart,
+    create_execution_time_chart,
+    create_r2_distribution_chart
+)
 
 # ==================== LOAD MODEL ====================
 MODEL_PATH = "/workspaces/stock_predictor_lstm_model/models/stock_lstm.pt"
@@ -17,6 +26,13 @@ except Exception as e:
     print(f"Error loading model: {e}")
     model = None
     scaler = None
+
+# ==================== LOGGER ====================
+# Set enable_s3=True to enable S3 uploads (configure env vars first)
+logger = PredictionLogger(log_dir="logs", enable_s3=False)
+
+# ==================== TEMPLATES ====================
+templates = Jinja2Templates(directory="templates")
 
 # ==================== FASTAPI APP ====================
 app = FastAPI(
@@ -33,6 +49,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="templates/static"), name="static")
 
 # ==================== REQUEST/RESPONSE MODELS ====================
 class PredictionRequest(BaseModel):
@@ -57,6 +76,50 @@ class PredictionResponse(BaseModel):
 def root():
     """Retorna o arquivo HTML da interface"""
     return FileResponse("templates/index.html")
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    """Retorna o dashboard de logs"""
+    try:
+        # Get dashboard data
+        data = get_dashboard_data(log_dir="logs")
+        
+        # Generate charts
+        chart_ticker_distribution = create_ticker_distribution_chart(data)
+        chart_daily_predictions = create_daily_predictions_chart(data)
+        chart_execution_time = create_execution_time_chart(data)
+        chart_r2_distribution = create_r2_distribution_chart(data)
+        
+        # Calculate success rate
+        total = data["total_predictions"]
+        success_rate = round((data["successful"] / total * 100), 1) if total > 0 else 0
+        
+        # Render template
+        context = {
+            "total_predictions": data["total_predictions"],
+            "successful": data["successful"],
+            "failed": data["failed"],
+            "success_rate": success_rate,
+            "recent_logs": data["logs"][:10],
+            "chart_ticker_distribution": chart_ticker_distribution,
+            "chart_daily_predictions": chart_daily_predictions,
+            "chart_execution_time": chart_execution_time,
+            "chart_r2_distribution": chart_r2_distribution
+        }
+        
+        with open("templates/dashboard.html", "r", encoding="utf-8") as f:
+            template_content = f.read()
+        
+        # Simple template rendering (replacing {{ }} placeholders)
+        from jinja2 import Template
+        template = Template(template_content)
+        html_content = template.render(**context)
+        
+        return HTMLResponse(content=html_content)
+        
+    except Exception as e:
+        print(f"Error generating dashboard: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generating dashboard: {str(e)}")
 
 @app.get("/health")
 def health():
@@ -105,14 +168,54 @@ def predict(request: PredictionRequest):
         
         print(f"✅ Prediction completed in {duration:.2f}s")
         
+        # Log the prediction
+        log_info = logger.log_prediction(
+            ticker=request.ticker.upper(),
+            start_date=request.start_date,
+            end_date=request.end_date,
+            result=result,
+            duration=duration,
+            success=True
+        )
+        
         return PredictionResponse(**result)
     
     except ValueError as e:
+        # Log the error
+        logger.log_prediction(
+            ticker=request.ticker.upper(),
+            start_date=request.start_date,
+            end_date=request.end_date,
+            result={},
+            duration=time.time() - start_time if 'start_time' in locals() else 0,
+            success=False,
+            error=str(e)
+        )
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
+        # Log the error
+        logger.log_prediction(
+            ticker=request.ticker.upper(),
+            start_date=request.start_date,
+            end_date=request.end_date,
+            result={},
+            duration=time.time() - start_time if 'start_time' in locals() else 0,
+            success=False,
+            error=str(e)
+        )
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"❌ Error: {e}")
+        # Log the error
+        logger.log_prediction(
+            ticker=request.ticker.upper(),
+            start_date=request.start_date,
+            end_date=request.end_date,
+            result={},
+            duration=time.time() - start_time if 'start_time' in locals() else 0,
+            success=False,
+            error=str(e)
+        )
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/info")
@@ -127,3 +230,29 @@ def info():
         "target_market": "IBOV - Ações Brasileiras",
         "version": "1.0.0"
     }
+
+@app.get("/api/logs/recent")
+def get_recent_logs(limit: int = 10):
+    """
+    Retorna logs recentes de previsões
+    
+    Args:
+        limit: Número máximo de logs a retornar (padrão: 10)
+    """
+    try:
+        logs = logger.get_recent_logs(limit=limit)
+        return {
+            "count": len(logs),
+            "logs": logs
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving logs: {str(e)}")
+
+@app.get("/api/logs/stats")
+def get_log_stats():
+    """Retorna estatísticas dos logs de previsões"""
+    try:
+        stats = logger.get_stats()
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving stats: {str(e)}")
