@@ -31,16 +31,25 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Logs
+# Local files
+test_*.py
+.env
+.env.local
+.env.*.local
+local_test.py
+
+# Logs (not needed - using S3)
+logs/
 *.log
-*.pot
 
 # Notebooks
-.ipynb_checkpoints/
+notebooks/
+*.ipynb
 
-# Node (if used)
-node_modules/
-package-lock.json
+# Documentation
+docs/
+*.md
+README.md
 
 # Build artifacts
 build/

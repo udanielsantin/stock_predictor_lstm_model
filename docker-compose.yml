@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    image: stock-lstm-api:latest
+    container_name: stock-lstm-api
+    ports:
+      - "8000:8000"
+    
+    # Environment variables for S3 logging
+    environment:
+      - PORT=8000
+      - PYTHONUNBUFFERED=1
+      # S3 Configuration - Update these values
+      - S3_BUCKET_NAME=vapor-stock-predictor-logs
+      - S3_LOG_PREFIX=logs/
+      - AWS_REGION=us-east-1
+      # AWS Credentials - IMPORTANT: Never commit these to git!
+      # Set them via .env file or directly in EC2
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    
+    volumes:
+      # Read-only volumes for models and source code
+      - ./models:/app/models:ro
+      - ./api:/app/api:ro
+      - ./src:/app/src:ro
+      # Note: No local logs volume needed - all logs go to S3
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+# Optional: Use with .env file for credentials
+# Create a .env file in the root directory with:
+# AWS_ACCESS_KEY_ID=your-access-key
+# AWS_SECRET_ACCESS_KEY=your-secret-key
