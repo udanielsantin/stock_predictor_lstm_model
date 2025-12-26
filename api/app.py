@@ -28,8 +28,14 @@ except Exception as e:
     scaler = None
 
 # ==================== LOGGER ====================
-# Set enable_s3=True to enable S3 uploads (configure env vars first)
-logger = PredictionLogger(log_dir="logs", enable_s3=False)
+# S3-only logging - all logs are stored in S3
+# Required env vars: S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+try:
+    logger = PredictionLogger()
+except ValueError as e:
+    print(f"⚠️  Warning: {e}")
+    print("Application will continue but logging will fail without S3 configuration")
+    logger = None
 
 # ==================== TEMPLATES ====================
 templates = Jinja2Templates(directory="templates")
@@ -81,8 +87,8 @@ def root():
 def dashboard():
     """Retorna o dashboard de logs"""
     try:
-        # Get dashboard data
-        data = get_dashboard_data(log_dir="logs")
+        # Get dashboard data from S3
+        data = get_dashboard_data()
         
         # Generate charts
         chart_ticker_distribution = create_ticker_distribution_chart(data)
@@ -169,53 +175,69 @@ def predict(request: PredictionRequest):
         print(f"✅ Prediction completed in {duration:.2f}s")
         
         # Log the prediction
-        log_info = logger.log_prediction(
-            ticker=request.ticker.upper(),
-            start_date=request.start_date,
-            end_date=request.end_date,
-            result=result,
-            duration=duration,
-            success=True
-        )
+        if logger:
+            try:
+                log_info = logger.log_prediction(
+                    ticker=request.ticker.upper(),
+                    start_date=request.start_date,
+                    end_date=request.end_date,
+                    result=result,
+                    duration=duration,
+                    success=True
+                )
+            except Exception as log_err:
+                print(f"⚠️  Warning: Failed to log prediction: {log_err}")
         
         return PredictionResponse(**result)
     
     except ValueError as e:
         # Log the error
-        logger.log_prediction(
-            ticker=request.ticker.upper(),
-            start_date=request.start_date,
-            end_date=request.end_date,
-            result={},
-            duration=time.time() - start_time if 'start_time' in locals() else 0,
-            success=False,
-            error=str(e)
-        )
+        if logger:
+            try:
+                logger.log_prediction(
+                    ticker=request.ticker.upper(),
+                    start_date=request.start_date,
+                    end_date=request.end_date,
+                    result={},
+                    duration=time.time() - start_time if 'start_time' in locals() else 0,
+                    success=False,
+                    error=str(e)
+                )
+            except Exception as log_err:
+                print(f"⚠️  Warning: Failed to log error: {log_err}")
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
         # Log the error
-        logger.log_prediction(
-            ticker=request.ticker.upper(),
-            start_date=request.start_date,
-            end_date=request.end_date,
-            result={},
-            duration=time.time() - start_time if 'start_time' in locals() else 0,
-            success=False,
-            error=str(e)
-        )
+        if logger:
+            try:
+                logger.log_prediction(
+                    ticker=request.ticker.upper(),
+                    start_date=request.start_date,
+                    end_date=request.end_date,
+                    result={},
+                    duration=time.time() - start_time if 'start_time' in locals() else 0,
+                    success=False,
+                    error=str(e)
+                )
+            except Exception as log_err:
+                print(f"⚠️  Warning: Failed to log error: {log_err}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"❌ Error: {e}")
         # Log the error
-        logger.log_prediction(
-            ticker=request.ticker.upper(),
-            start_date=request.start_date,
-            end_date=request.end_date,
-            result={},
-            duration=time.time() - start_time if 'start_time' in locals() else 0,
-            success=False,
-            error=str(e)
-        )
+        if logger:
+            try:
+                logger.log_prediction(
+                    ticker=request.ticker.upper(),
+                    start_date=request.start_date,
+                    end_date=request.end_date,
+                    result={},
+                    duration=time.time() - start_time if 'start_time' in locals() else 0,
+                    success=False,
+                    error=str(e)
+                )
+            except Exception as log_err:
+                print(f"⚠️  Warning: Failed to log error: {log_err}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/info")
@@ -240,6 +262,8 @@ def get_recent_logs(limit: int = 10):
         limit: Número máximo de logs a retornar (padrão: 10)
     """
     try:
+        if not logger:
+            raise ValueError("Logger not configured. Please set S3_BUCKET_NAME environment variable.")
         logs = logger.get_recent_logs(limit=limit)
         return {
             "count": len(logs),
@@ -252,6 +276,8 @@ def get_recent_logs(limit: int = 10):
 def get_log_stats():
     """Retorna estatísticas dos logs de previsões"""
     try:
+        if not logger:
+            raise ValueError("Logger not configured. Please set S3_BUCKET_NAME environment variable.")
         stats = logger.get_stats()
         return stats
     except Exception as e:

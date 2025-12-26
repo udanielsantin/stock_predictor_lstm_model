@@ -1,13 +1,12 @@
 """
 Utilities for logging prediction results
-Supports local file storage and S3 upload
+S3-only storage - logs are uploaded and retrieved from S3
 """
 
 import json
 import os
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import boto3
 from botocore.exceptions import ClientError
 import numpy as np
@@ -26,35 +25,41 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 class PredictionLogger:
-    """Logger for stock prediction results"""
+    """Logger for stock prediction results - S3 Only"""
     
-    def __init__(self, log_dir: str = "logs", enable_s3: bool = False):
+    def __init__(self):
         """
-        Initialize the logger
+        Initialize the logger with S3 configuration
         
-        Args:
-            log_dir: Local directory to save logs
-            enable_s3: Whether to enable S3 uploads
+        All logs are stored in S3 only.
+        Requires environment variables:
+        - S3_BUCKET_NAME: Name of the S3 bucket
+        - AWS_ACCESS_KEY_ID: AWS access key
+        - AWS_SECRET_ACCESS_KEY: AWS secret key
+        - AWS_REGION: AWS region (default: us-east-1)
+        - S3_LOG_PREFIX: S3 prefix for logs (default: logs/)
         """
-        self.log_dir = Path(log_dir)
-        self.log_dir.mkdir(exist_ok=True)
-        self.enable_s3 = enable_s3
-        
         # S3 configuration (from environment variables)
         self.s3_bucket = os.getenv("S3_BUCKET_NAME")
-        self.s3_prefix = os.getenv("S3_LOG_PREFIX", "stock-predictions/")
+        self.s3_prefix = os.getenv("S3_LOG_PREFIX", "logs/")
+        self.aws_region = os.getenv("AWS_REGION", "us-east-1")
         
-        if self.enable_s3:
-            try:
-                self.s3_client = boto3.client(
-                    's3',
-                    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-                    region_name=os.getenv("AWS_REGION", "us-east-1")
-                )
-            except Exception as e:
-                print(f"⚠️  S3 client initialization failed: {e}")
-                self.enable_s3 = False
+        if not self.s3_bucket:
+            raise ValueError(
+                "S3_BUCKET_NAME environment variable is required. "
+                "Please configure it before running the application."
+            )
+        
+        try:
+            self.s3_client = boto3.client(
+                's3',
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                region_name=self.aws_region
+            )
+            print(f"✅ S3 Logger initialized with bucket: {self.s3_bucket}")
+        except Exception as e:
+            raise ValueError(f"Failed to initialize S3 client: {e}")
     
     def create_log_entry(
         self,
@@ -110,62 +115,6 @@ class PredictionLogger:
         
         return log_entry
     
-    def save_local(self, log_entry: Dict[str, Any]) -> str:
-        """
-        Save log entry to local file
-        
-        Args:
-            log_entry: Log dictionary
-            
-        Returns:
-            Path to saved file
-        """
-        # Create filename with timestamp and ticker
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        ticker = log_entry["request"]["ticker"]
-        filename = f"prediction_{ticker}_{timestamp}.json"
-        filepath = self.log_dir / filename
-        
-        # Save to file with NumpyEncoder
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(log_entry, f, indent=2, ensure_ascii=False, cls=NumpyEncoder)
-        
-        return str(filepath)
-    
-    def upload_to_s3(self, log_entry: Dict[str, Any]) -> bool:
-        """
-        Upload log entry to S3
-        
-        Args:
-            log_entry: Log dictionary
-            
-        Returns:
-            Success status
-        """
-        if not self.enable_s3 or not self.s3_bucket:
-            return False
-        
-        try:
-            # Create S3 key
-            timestamp = datetime.utcnow().strftime("%Y/%m/%d/%H%M%S")
-            ticker = log_entry["request"]["ticker"]
-            s3_key = f"{self.s3_prefix}{timestamp}_{ticker}.json"
-            
-            # Upload to S3 with NumpyEncoder
-            self.s3_client.put_object(
-                Bucket=self.s3_bucket,
-                Key=s3_key,
-                Body=json.dumps(log_entry, ensure_ascii=False, cls=NumpyEncoder),
-                ContentType='application/json'
-            )
-            
-            print(f"✅ Log uploaded to S3: s3://{self.s3_bucket}/{s3_key}")
-            return True
-            
-        except ClientError as e:
-            print(f"❌ Failed to upload to S3: {e}")
-            return False
-    
     def log_prediction(
         self,
         ticker: str,
@@ -177,7 +126,7 @@ class PredictionLogger:
         error: Optional[str] = None
     ) -> Dict[str, str]:
         """
-        Log a prediction (saves locally and optionally to S3)
+        Log a prediction directly to S3
         
         Args:
             ticker: Stock ticker symbol
@@ -189,7 +138,7 @@ class PredictionLogger:
             error: Error message if failed
             
         Returns:
-            Dictionary with file paths/status
+            Dictionary with S3 path and timestamp
         """
         # Create log entry
         log_entry = self.create_log_entry(
@@ -202,67 +151,124 @@ class PredictionLogger:
             error=error
         )
         
-        # Save locally
-        local_path = self.save_local(log_entry)
-        print(f"📝 Log saved: {local_path}")
-        
-        # Upload to S3 if enabled
-        s3_uploaded = False
-        if self.enable_s3:
-            s3_uploaded = self.upload_to_s3(log_entry)
-        
-        return {
-            "local_path": local_path,
-            "s3_uploaded": s3_uploaded,
-            "timestamp": log_entry["timestamp"]
-        }
+        # Upload to S3
+        try:
+            timestamp = datetime.utcnow().strftime("%Y/%m/%d/%H%M%S")
+            s3_key = f"{self.s3_prefix}{timestamp}_{ticker}.json"
+            
+            self.s3_client.put_object(
+                Bucket=self.s3_bucket,
+                Key=s3_key,
+                Body=json.dumps(log_entry, ensure_ascii=False, cls=NumpyEncoder),
+                ContentType='application/json'
+            )
+            
+            print(f"📝 Log uploaded to S3: s3://{self.s3_bucket}/{s3_key}")
+            
+            return {
+                "s3_path": f"s3://{self.s3_bucket}/{s3_key}",
+                "s3_key": s3_key,
+                "timestamp": log_entry["timestamp"]
+            }
+        except ClientError as e:
+            print(f"❌ Failed to upload log to S3: {e}")
+            raise
     
-    def get_recent_logs(self, limit: int = 10) -> list:
+    def get_recent_logs(self, limit: int = 10) -> List[Dict[str, Any]]:
         """
-        Get recent log files
+        Get recent log files from S3
         
         Args:
             limit: Maximum number of logs to return
             
         Returns:
-            List of log entries
+            List of log entries from S3
         """
-        log_files = sorted(self.log_dir.glob("prediction_*.json"), reverse=True)[:limit]
-        
-        logs = []
-        for log_file in log_files:
-            with open(log_file, 'r', encoding='utf-8') as f:
-                logs.append(json.load(f))
-        
-        return logs
+        try:
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.s3_bucket,
+                Prefix=self.s3_prefix,
+                MaxKeys=limit
+            )
+            
+            logs = []
+            
+            if 'Contents' not in response:
+                return logs
+            
+            # Sort by last modified, most recent first
+            objects = sorted(response['Contents'], key=lambda x: x['LastModified'], reverse=True)
+            
+            for obj in objects[:limit]:
+                try:
+                    response = self.s3_client.get_object(
+                        Bucket=self.s3_bucket,
+                        Key=obj['Key']
+                    )
+                    content = json.loads(response['Body'].read().decode('utf-8'))
+                    logs.append(content)
+                except Exception as e:
+                    print(f"⚠️  Failed to read log {obj['Key']}: {e}")
+                    continue
+            
+            return logs
+            
+        except ClientError as e:
+            print(f"❌ Failed to retrieve logs from S3: {e}")
+            return []
     
     def get_stats(self) -> Dict[str, Any]:
         """
-        Get statistics about logged predictions
+        Get statistics about logged predictions from S3
         
         Returns:
             Statistics dictionary
         """
-        log_files = list(self.log_dir.glob("prediction_*.json"))
-        
-        total_predictions = len(log_files)
-        successful = 0
-        failed = 0
-        tickers = set()
-        
-        for log_file in log_files:
-            with open(log_file, 'r', encoding='utf-8') as f:
-                log_data = json.load(f)
-                if log_data["execution"]["success"]:
-                    successful += 1
-                else:
-                    failed += 1
-                tickers.add(log_data["request"]["ticker"])
-        
-        return {
-            "total_predictions": total_predictions,
-            "successful": successful,
-            "failed": failed,
-            "unique_tickers": len(tickers),
-            "tickers": sorted(list(tickers))
-        }
+        try:
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.s3_bucket,
+                Prefix=self.s3_prefix
+            )
+            
+            total_predictions = 0
+            successful = 0
+            failed = 0
+            tickers = set()
+            
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    total_predictions += 1
+                    try:
+                        log_response = self.s3_client.get_object(
+                            Bucket=self.s3_bucket,
+                            Key=obj['Key']
+                        )
+                        log_data = json.loads(log_response['Body'].read().decode('utf-8'))
+                        
+                        if log_data["execution"]["success"]:
+                            successful += 1
+                        else:
+                            failed += 1
+                        
+                        tickers.add(log_data["request"]["ticker"])
+                    except Exception as e:
+                        print(f"⚠️  Failed to parse log {obj['Key']}: {e}")
+                        continue
+            
+            return {
+                "total_predictions": total_predictions,
+                "successful": successful,
+                "failed": failed,
+                "unique_tickers": len(tickers),
+                "tickers": sorted(list(tickers))
+            }
+            
+        except ClientError as e:
+            print(f"❌ Failed to retrieve stats from S3: {e}")
+            return {
+                "total_predictions": 0,
+                "successful": 0,
+                "failed": 0,
+                "unique_tickers": 0,
+                "tickers": []
+            }

@@ -1,13 +1,16 @@
 """
 Utilities for generating dashboard visualizations
+Reads logs from S3
 """
 
 import json
+import os
+import boto3
+from botocore.exceptions import ClientError
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from pathlib import Path
 from datetime import datetime
 import io
 import base64
@@ -15,19 +18,28 @@ from typing import Dict, List, Any
 import numpy as np
 
 
-def get_dashboard_data(log_dir: str = "logs") -> Dict[str, Any]:
+def get_s3_client():
+    """Initialize S3 client"""
+    return boto3.client(
+        's3',
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        region_name=os.getenv("AWS_REGION", "us-east-1")
+    )
+
+
+def get_dashboard_data() -> Dict[str, Any]:
     """
-    Process all logs and return dashboard data
+    Process all logs from S3 and return dashboard data
     
-    Args:
-        log_dir: Directory containing log files
-        
     Returns:
         Dictionary with processed dashboard data
     """
-    log_path = Path(log_dir)
+    s3_bucket = os.getenv("S3_BUCKET_NAME")
+    s3_prefix = os.getenv("S3_LOG_PREFIX", "logs/")
     
-    if not log_path.exists():
+    if not s3_bucket:
+        print("⚠️  S3_BUCKET_NAME not configured")
         return {
             "total_predictions": 0,
             "successful": 0,
@@ -35,21 +47,40 @@ def get_dashboard_data(log_dir: str = "logs") -> Dict[str, Any]:
             "logs": []
         }
     
-    log_files = sorted(log_path.glob("prediction_*.json"))
-    
-    logs = []
-    successful = 0
-    failed = 0
-    tickers_count = {}
-    daily_predictions = {}
-    execution_times = []
-    r2_scores = []
-    prediction_changes = []
-    
-    for log_file in log_files:
-        try:
-            with open(log_file, 'r', encoding='utf-8') as f:
-                log_data = json.load(f)
+    try:
+        s3_client = get_s3_client()
+        
+        # List all objects in S3
+        response = s3_client.list_objects_v2(
+            Bucket=s3_bucket,
+            Prefix=s3_prefix
+        )
+        
+        logs = []
+        successful = 0
+        failed = 0
+        tickers_count = {}
+        daily_predictions = {}
+        execution_times = []
+        r2_scores = []
+        prediction_changes = []
+        
+        if 'Contents' not in response:
+            return {
+                "total_predictions": 0,
+                "successful": 0,
+                "failed": 0,
+                "logs": []
+            }
+        
+        # Fetch all logs from S3
+        for obj in response['Contents']:
+            try:
+                log_response = s3_client.get_object(
+                    Bucket=s3_bucket,
+                    Key=obj['Key']
+                )
+                log_data = json.loads(log_response['Body'].read().decode('utf-8'))
                 logs.append(log_data)
                 
                 # Count success/failure
@@ -80,26 +111,35 @@ def get_dashboard_data(log_dir: str = "logs") -> Dict[str, Any]:
                 # Execution times
                 exec_time = log_data["execution"]["duration_seconds"]
                 execution_times.append(exec_time)
+            
+            except Exception as e:
+                print(f"⚠️  Error processing log {obj['Key']}: {e}")
         
-        except Exception as e:
-            print(f"Error processing {log_file}: {e}")
+        return {
+            "total_predictions": len(logs),
+            "successful": successful,
+            "failed": failed,
+            "logs": sorted(logs, key=lambda x: x["timestamp"], reverse=True),
+            "tickers_count": tickers_count,
+            "daily_predictions": daily_predictions,
+            "execution_times": execution_times,
+            "r2_scores": r2_scores,
+            "prediction_changes": prediction_changes
+        }
     
-    return {
-        "total_predictions": len(logs),
-        "successful": successful,
-        "failed": failed,
-        "logs": sorted(logs, key=lambda x: x["timestamp"], reverse=True),
-        "tickers_count": tickers_count,
-        "daily_predictions": daily_predictions,
-        "execution_times": execution_times,
-        "r2_scores": r2_scores,
-        "prediction_changes": prediction_changes
-    }
+    except ClientError as e:
+        print(f"❌ Error reading logs from S3: {e}")
+        return {
+            "total_predictions": 0,
+            "successful": 0,
+            "failed": 0,
+            "logs": []
+        }
 
 
 def create_ticker_distribution_chart(data: Dict[str, Any]) -> str:
     """Create bar chart of predictions by ticker"""
-    tickers_count = data["tickers_count"]
+    tickers_count = data.get("tickers_count", {})
     
     if not tickers_count:
         return ""
@@ -132,7 +172,7 @@ def create_ticker_distribution_chart(data: Dict[str, Any]) -> str:
 
 def create_daily_predictions_chart(data: Dict[str, Any]) -> str:
     """Create line chart of daily predictions"""
-    daily_data = data["daily_predictions"]
+    daily_data = data.get("daily_predictions", {})
     
     if not daily_data:
         return ""
@@ -164,7 +204,7 @@ def create_daily_predictions_chart(data: Dict[str, Any]) -> str:
 
 def create_execution_time_chart(data: Dict[str, Any]) -> str:
     """Create histogram of execution times"""
-    exec_times = data["execution_times"]
+    exec_times = data.get("execution_times", [])
     
     if not exec_times:
         return ""
@@ -199,7 +239,7 @@ def create_execution_time_chart(data: Dict[str, Any]) -> str:
 
 def create_r2_distribution_chart(data: Dict[str, Any]) -> str:
     """Create histogram of R² scores"""
-    r2_scores = data["r2_scores"]
+    r2_scores = data.get("r2_scores", [])
     
     if not r2_scores:
         return ""
