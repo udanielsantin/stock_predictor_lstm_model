@@ -57,8 +57,11 @@ app.add_middleware(
 )
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="templates/static"), name="static")
-
+app.mount(
+    "/static",
+    StaticFiles(directory="/app/api/templates/static"),
+    name="static"
+)
 # ==================== REQUEST/RESPONSE MODELS ====================
 class PredictionRequest(BaseModel):
     ticker: str
