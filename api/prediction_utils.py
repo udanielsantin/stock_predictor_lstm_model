@@ -42,14 +42,34 @@ def load_model_and_scaler(model_path: str, scaler_path: str):
 # ==================== DATA LOADING ====================
 def load_stock_data(ticker: str, start: str, end: str):
     """Download stock data from Yahoo Finance"""
-    yf_ticker = ticker if "." in ticker else f"{ticker}.SA"
+    # Aceita qualquer ticker (internacional ou brasileiro)
+    # Se não tiver sufixo e parecer ser brasileiro (apenas letras + números), adiciona .SA
+    # Caso contrário, usa como está (MSFT, AAPL, etc.)
+    yf_ticker = ticker
+    
+    # Tenta primeiro com o ticker original
     try:
         df = yf.download(yf_ticker, start=start, end=end, auto_adjust=False)[["Close"]]
+        
+        # Se não retornar dados e não tiver ponto, tenta adicionar .SA para ações brasileiras
+        if (df is None or df.empty) and "." not in ticker:
+            print(f"⚠️  Ticker '{ticker}' não retornou dados. Tentando '{ticker}.SA'...")
+            yf_ticker = f"{ticker}.SA"
+            df = yf.download(yf_ticker, start=start, end=end, auto_adjust=False)[["Close"]]
     except Exception as e:
-        raise RuntimeError(f"Failed to download data for {yf_ticker}: {e}")
+        # Se falhar e não tiver ponto, tenta com .SA como fallback
+        if "." not in ticker:
+            print(f"⚠️  Erro com '{ticker}'. Tentando '{ticker}.SA'...")
+            yf_ticker = f"{ticker}.SA"
+            try:
+                df = yf.download(yf_ticker, start=start, end=end, auto_adjust=False)[["Close"]]
+            except Exception as e2:
+                raise RuntimeError(f"Failed to download data for both {ticker} and {yf_ticker}: {e2}")
+        else:
+            raise RuntimeError(f"Failed to download data for {yf_ticker}: {e}")
     
     if df is None or df.empty:
-        raise RuntimeError(f"No data returned for {yf_ticker}")
+        raise RuntimeError(f"No data returned for {yf_ticker}. Verifique se o ticker está correto.")
     
     df.dropna(inplace=True)
     df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]

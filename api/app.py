@@ -147,7 +147,7 @@ def predict(request: PredictionRequest):
     Faz previsão de preço de ação
     
     Args:
-        ticker: Símbolo da ação (ex: ABEV3, VALE3)
+        ticker: Símbolo da ação (ex: ABEV3, VALE3 para brasileiras ou MSFT, AAPL para internacionais)
         start_date: Data inicial (YYYY-MM-DD)
         end_date: Data final (YYYY-MM-DD)
     
@@ -254,7 +254,8 @@ def info():
         "neurons": 64,
         "sequence_length": 50,
         "input_size": 1,
-        "target_market": "IBOV - Ações Brasileiras",
+        "target_market": "Global - Ações de qualquer mercado (IBOV, NYSE, NASDAQ, etc.)",
+        "supported_tickers": "Brasileiras (.SA), Americanas (MSFT, AAPL), e outras",
         "version": "1.0.0"
     }
 
