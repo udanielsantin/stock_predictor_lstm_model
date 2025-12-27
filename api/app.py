@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
@@ -82,10 +82,12 @@ class PredictionResponse(BaseModel):
     plot: str
 
 # ==================== ENDPOINTS ====================
-@app.get("/")
-def root():
-    """Retorna o arquivo HTML da interface"""
-    return FileResponse("templates/index.html")
+@app.get("/", response_class=HTMLResponse)
+def root(request: Request):
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request}
+    )
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard():
