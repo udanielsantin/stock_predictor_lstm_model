@@ -17,8 +17,8 @@ from .dashboard_utils import (
 )
 
 # ==================== LOAD MODEL ====================
-MODEL_PATH = "/workspaces/stock_predictor_lstm_model/models/stock_lstm.pt"
-SCALER_PATH = "/workspaces/stock_predictor_lstm_model/models/scaler.joblib"
+MODEL_PATH = "/app/models/stock_lstm.pt"
+SCALER_PATH = "/app/models/scaler.joblib"
 
 try:
     model, scaler = load_model_and_scaler(MODEL_PATH, SCALER_PATH)
@@ -38,7 +38,8 @@ except ValueError as e:
     logger = None
 
 # ==================== TEMPLATES ====================
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="/app/api/templates")
+
 
 # ==================== FASTAPI APP ====================
 app = FastAPI(

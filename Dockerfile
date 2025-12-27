@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY api /app/api
 COPY src /app/src
 COPY models /app/models
+COPY api/templates /app/api/templates
 
 ENV PORT=8000
 EXPOSE 8000
