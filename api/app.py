@@ -6,9 +6,9 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import time
 import os
-from prediction_utils import load_model_and_scaler, predict_stock
-from log_utils import PredictionLogger
-from dashboard_utils import (
+from .prediction_utils import load_model_and_scaler, predict_stock
+from .log_utils import PredictionLogger
+from .dashboard_utils import (
     get_dashboard_data,
     create_ticker_distribution_chart,
     create_daily_predictions_chart,
