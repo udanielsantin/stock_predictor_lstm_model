@@ -24,7 +24,6 @@ Thumbs.db
 # Arquivos gerados por Data Science e ML (Scikit-learn / Tensorflow)
 # Modelos salvos, que geralmente são grandes e não devem ir para o Git
 *.pkl
-*.joblib
 *.h5
 *.model
 
