@@ -17,6 +17,17 @@
             margin-bottom: 10px;
         }
         
+        .yahoo-link {
+            font-size: 0.85em;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+        
+        .yahoo-link a {
+            color: white;
+            text-decoration: underline;
+        }
+        
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -155,6 +166,9 @@
             <button onclick="location.reload()" class="refresh-button">🔄 Atualizar</button>
             <h1>📊 Dashboard de Logs</h1>
             <p>Análise de todas as previsões realizadas</p>
+            <p class="yahoo-link">
+                💡 <a href="https://finance.yahoo.com/lookup" target="_blank">Consultar códigos de ações no Yahoo Finance</a>
+            </p>
         </div>
 
         {% if total_predictions > 0 %}

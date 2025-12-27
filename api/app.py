@@ -90,7 +90,7 @@ def root(request: Request):
     )
 
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard():
+def dashboard(request: Request):
     """Retorna o dashboard de logs"""
     try:
         # Get dashboard data from S3
@@ -106,8 +106,9 @@ def dashboard():
         total = data["total_predictions"]
         success_rate = round((data["successful"] / total * 100), 1) if total > 0 else 0
         
-        # Render template
+        # Contexto passado para o template
         context = {
+            "request": request,  # OBRIGATÓRIO para Jinja no FastAPI
             "total_predictions": data["total_predictions"],
             "successful": data["successful"],
             "failed": data["failed"],
@@ -119,19 +120,17 @@ def dashboard():
             "chart_r2_distribution": chart_r2_distribution
         }
         
-        with open("templates/dashboard.html", "r", encoding="utf-8") as f:
-            template_content = f.read()
-        
-        # Simple template rendering (replacing {{ }} placeholders)
-        from jinja2 import Template
-        template = Template(template_content)
-        html_content = template.render(**context)
-        
-        return HTMLResponse(content=html_content)
+        return templates.TemplateResponse(
+            "dashboard.html",
+            context
+        )
         
     except Exception as e:
         print(f"Error generating dashboard: {e}")
-        raise HTTPException(status_code=500, detail=f"Error generating dashboard: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating dashboard: {str(e)}"
+        )
 
 @app.get("/health")
 def health():
