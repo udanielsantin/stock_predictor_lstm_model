@@ -2,7 +2,7 @@
 
 Previsão de preços de ações usando modelo LSTM (qualquer ticker do Yahoo Finance, com fallback ".SA" para brasileiros quando precisar).
 
-> 🔗 **[Acesse o site aqui](https://seu-site-aqui.com)** _(adicione o link do seu site)_
+> 🔗 **[Acesse o site aqui](http://http://56.124.8.59/)** _(adicione o link do seu site)_
 
 ---
 
