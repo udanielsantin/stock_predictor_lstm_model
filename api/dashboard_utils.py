@@ -1,8 +1,3 @@
-"""
-Utilities for generating dashboard visualizations
-Reads logs from S3
-"""
-
 import json
 import os
 import boto3
@@ -19,7 +14,6 @@ import numpy as np
 
 
 def get_s3_client():
-    """Initialize S3 client"""
     return boto3.client(
         's3',
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
@@ -29,17 +23,10 @@ def get_s3_client():
 
 
 def get_dashboard_data() -> Dict[str, Any]:
-    """
-    Process all logs from S3 and return dashboard data
-    
-    Returns:
-        Dictionary with processed dashboard data
-    """
     s3_bucket = os.getenv("S3_BUCKET_NAME")
     s3_prefix = os.getenv("S3_LOG_PREFIX", "logs/")
     
     if not s3_bucket:
-        print("⚠️  S3_BUCKET_NAME not configured")
         return {
             "total_predictions": 0,
             "successful": 0,
@@ -50,7 +37,6 @@ def get_dashboard_data() -> Dict[str, Any]:
     try:
         s3_client = get_s3_client()
         
-        # List all objects in S3
         response = s3_client.list_objects_v2(
             Bucket=s3_bucket,
             Prefix=s3_prefix
@@ -73,7 +59,6 @@ def get_dashboard_data() -> Dict[str, Any]:
                 "logs": []
             }
         
-        # Fetch all logs from S3
         for obj in response['Contents']:
             try:
                 log_response = s3_client.get_object(
@@ -83,11 +68,9 @@ def get_dashboard_data() -> Dict[str, Any]:
                 log_data = json.loads(log_response['Body'].read().decode('utf-8'))
                 logs.append(log_data)
                 
-                # Count success/failure
                 if log_data["execution"]["success"]:
                     successful += 1
                     
-                    # Collect metrics
                     if "result" in log_data and log_data["result"]:
                         r2 = log_data["result"].get("metrics", {}).get("R2")
                         if r2 is not None:
@@ -99,21 +82,19 @@ def get_dashboard_data() -> Dict[str, Any]:
                 else:
                     failed += 1
                 
-                # Count by ticker
                 ticker = log_data["request"]["ticker"]
                 tickers_count[ticker] = tickers_count.get(ticker, 0) + 1
                 
-                # Count by day
                 timestamp = log_data["timestamp"]
                 day = timestamp.split("T")[0]
                 daily_predictions[day] = daily_predictions.get(day, 0) + 1
                 
-                # Execution times
                 exec_time = log_data["execution"]["duration_seconds"]
                 execution_times.append(exec_time)
             
             except Exception as e:
-                print(f"⚠️  Error processing log {obj['Key']}: {e}")
+                # print(f"⚠️  Error processing log {obj['Key']}: {e}")
+                e
         
         return {
             "total_predictions": len(logs),
@@ -138,13 +119,11 @@ def get_dashboard_data() -> Dict[str, Any]:
 
 
 def create_ticker_distribution_chart(data: Dict[str, Any]) -> str:
-    """Create bar chart of predictions by ticker"""
     tickers_count = data.get("tickers_count", {})
     
     if not tickers_count:
         return ""
     
-    # Sort by count
     sorted_tickers = sorted(tickers_count.items(), key=lambda x: x[1], reverse=True)[:10]
     tickers = [t[0] for t in sorted_tickers]
     counts = [t[1] for t in sorted_tickers]
@@ -152,7 +131,6 @@ def create_ticker_distribution_chart(data: Dict[str, Any]) -> str:
     fig, ax = plt.subplots(figsize=(10, 6))
     bars = ax.bar(tickers, counts, color='#667eea', alpha=0.8)
     
-    # Add value labels on bars
     for bar in bars:
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height,
@@ -171,13 +149,11 @@ def create_ticker_distribution_chart(data: Dict[str, Any]) -> str:
 
 
 def create_daily_predictions_chart(data: Dict[str, Any]) -> str:
-    """Create line chart of daily predictions"""
     daily_data = data.get("daily_predictions", {})
     
     if not daily_data:
         return ""
     
-    # Sort by date
     sorted_days = sorted(daily_data.items())
     dates = [datetime.fromisoformat(d[0]) for d in sorted_days]
     counts = [d[1] for d in sorted_days]
@@ -192,7 +168,6 @@ def create_daily_predictions_chart(data: Dict[str, Any]) -> str:
     ax.set_title('Previsões por Dia', fontsize=14, fontweight='bold', pad=20)
     ax.grid(True, alpha=0.3)
     
-    # Format x-axis
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, len(dates)//10)))
     plt.xticks(rotation=45)
@@ -203,7 +178,6 @@ def create_daily_predictions_chart(data: Dict[str, Any]) -> str:
 
 
 def create_execution_time_chart(data: Dict[str, Any]) -> str:
-    """Create histogram of execution times"""
     exec_times = data.get("execution_times", [])
     
     if not exec_times:
@@ -213,7 +187,6 @@ def create_execution_time_chart(data: Dict[str, Any]) -> str:
     
     n, bins, patches = ax.hist(exec_times, bins=20, color='#667eea', alpha=0.7, edgecolor='black')
     
-    # Color the bars with a gradient
     cm = plt.cm.get_cmap('viridis')
     bin_centers = 0.5 * (bins[:-1] + bins[1:])
     col = bin_centers - min(bin_centers)
@@ -227,7 +200,6 @@ def create_execution_time_chart(data: Dict[str, Any]) -> str:
     ax.set_title('Distribuição de Tempo de Execução', fontsize=14, fontweight='bold', pad=20)
     ax.grid(axis='y', alpha=0.3)
     
-    # Add statistics
     avg_time = np.mean(exec_times)
     ax.axvline(avg_time, color='red', linestyle='--', linewidth=2, label=f'Média: {avg_time:.2f}s')
     ax.legend()
@@ -238,7 +210,6 @@ def create_execution_time_chart(data: Dict[str, Any]) -> str:
 
 
 def create_r2_distribution_chart(data: Dict[str, Any]) -> str:
-    """Create histogram of R² scores"""
     r2_scores = data.get("r2_scores", [])
     
     if not r2_scores:
@@ -253,7 +224,6 @@ def create_r2_distribution_chart(data: Dict[str, Any]) -> str:
     ax.set_title('Distribuição de R² Score (Qualidade das Previsões)', fontsize=14, fontweight='bold', pad=20)
     ax.grid(axis='y', alpha=0.3)
     
-    # Add statistics
     avg_r2 = np.mean(r2_scores)
     ax.axvline(avg_r2, color='red', linestyle='--', linewidth=2, label=f'Média: {avg_r2:.4f}')
     ax.legend()
@@ -264,7 +234,6 @@ def create_r2_distribution_chart(data: Dict[str, Any]) -> str:
 
 
 def fig_to_base64(fig) -> str:
-    """Convert matplotlib figure to base64 string"""
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
     buf.seek(0)

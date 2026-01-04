@@ -14,19 +14,11 @@ from datetime import datetime
 # Configurações do S3 (defina suas variáveis de ambiente ou modifique aqui)
 S3_BUCKET = os.getenv("S3_BUCKET_NAME", "your-bucket-name")
 S3_PREFIX = os.getenv("S3_LOG_PREFIX", "stock-predictions/")
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+AWS_REGION = os.getenv("AWS_REGION", "sa-east-1")
 LOG_DIR = "logs"
 
 
 def upload_logs_to_s3(dry_run=False):
-    """
-    Upload all local logs to S3
-    
-    Args:
-        dry_run: If True, only shows what would be uploaded without actually uploading
-    """
-    
-    # Initialize S3 client
     try:
         s3_client = boto3.client(
             's3',
@@ -44,23 +36,7 @@ def upload_logs_to_s3(dry_run=False):
     
     # Get all log files
     log_dir = Path(LOG_DIR)
-    if not log_dir.exists():
-        print(f"❌ Log directory not found: {LOG_DIR}")
-        return False
-    
     log_files = list(log_dir.glob("prediction_*.json"))
-    
-    if not log_files:
-        print(f"📭 No log files found in {LOG_DIR}")
-        return True
-    
-    print(f"📊 Found {len(log_files)} log files")
-    print(f"🪣 Target S3 bucket: {S3_BUCKET}")
-    print(f"📁 S3 prefix: {S3_PREFIX}")
-    print()
-    
-    if dry_run:
-        print("🔍 DRY RUN MODE - No files will be uploaded\n")
     
     uploaded = 0
     failed = 0
@@ -80,7 +56,6 @@ def upload_logs_to_s3(dry_run=False):
             s3_key = f"{S3_PREFIX}{dt.year}/{dt.month:02d}/{dt.day:02d}/{timestamp}_{ticker}.json"
             
             if dry_run:
-                print(f"📝 Would upload: {log_file.name} -> s3://{S3_BUCKET}/{s3_key}")
                 uploaded += 1
             else:
                 # Upload to S3
@@ -96,30 +71,17 @@ def upload_logs_to_s3(dry_run=False):
                     }
                 )
                 
-                print(f"✅ Uploaded: {log_file.name} -> s3://{S3_BUCKET}/{s3_key}")
                 uploaded += 1
         
         except ClientError as e:
-            print(f"❌ Failed to upload {log_file.name}: {e}")
             failed += 1
         except Exception as e:
-            print(f"❌ Error processing {log_file.name}: {e}")
             failed += 1
-    
-    print()
-    print("=" * 60)
-    print(f"📊 Summary:")
-    print(f"   Total files: {len(log_files)}")
-    print(f"   ✅ Uploaded: {uploaded}")
-    if failed > 0:
-        print(f"   ❌ Failed: {failed}")
-    print("=" * 60)
     
     return failed == 0
 
 
 def main():
-    """Main function"""
     import argparse
     
     parser = argparse.ArgumentParser(description="Upload prediction logs to S3")
@@ -131,18 +93,11 @@ def main():
     
     args = parser.parse_args()
     
-    print("=" * 60)
-    print("📤 Stock Prediction Logs - S3 Uploader")
-    print("=" * 60)
-    print()
-    
     success = upload_logs_to_s3(dry_run=args.dry_run)
     
     if success:
-        print("\n✅ Upload completed successfully!")
         sys.exit(0)
     else:
-        print("\n❌ Upload failed!")
         sys.exit(1)
 
 

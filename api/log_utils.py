@@ -1,8 +1,3 @@
-"""
-Utilities for logging prediction results
-S3-only storage - logs are uploaded and retrieved from S3
-"""
-
 import json
 import os
 from datetime import datetime
@@ -25,8 +20,6 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 class PredictionLogger:
-    """Logger for stock prediction results - S3 Only"""
-    
     def __init__(self):
         """
         Initialize the logger with S3 configuration

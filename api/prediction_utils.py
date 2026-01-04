@@ -1,7 +1,3 @@
-"""
-Prediction helper functions for the Stock LSTM Model
-"""
-
 import torch
 import torch.nn as nn
 import joblib
@@ -29,7 +25,6 @@ class StockLSTM(nn.Module):
 
 # ==================== LOAD MODEL ====================
 def load_model_and_scaler(model_path: str, scaler_path: str):
-    """Load pre-trained model and scaler"""
     model = StockLSTM(input_size=1, hidden_size=64, num_layers=2)
     model.load_state_dict(torch.load(model_path, weights_only=True))
     model.eval()
@@ -78,7 +73,6 @@ def load_stock_data(ticker: str, start: str, end: str):
 
 # ==================== SEQUENCE CREATION ====================
 def create_sequences(data, seq_length=50):
-    """Create sequences for LSTM"""
     x, y = [], []
     for i in range(len(data) - seq_length):
         x.append(data[i : i + seq_length])
@@ -88,7 +82,6 @@ def create_sequences(data, seq_length=50):
 
 # ==================== PLOTTING ====================
 def generate_plot_base64(y_true, y_pred, ticker: str, start_date: str, end_date: str) -> str:
-    """Generate matplotlib plot and return as base64"""
     fig, ax = plt.subplots(figsize=(14, 6))
     
     ax.plot(y_true, label='Preço Real', color='#1f77b4', linewidth=2.5, alpha=0.8)
@@ -119,37 +112,29 @@ def predict_stock(
     model,
     scaler
 ) -> dict:
-    """Predict stock prices using the loaded model"""
-    
-    # Load data
+
     df = load_stock_data(ticker, start_date, end_date)
     df.reset_index(inplace=True)
     
-    # Scale data with a new scaler (fit on the new data)
     scaler_new = MinMaxScaler()
     scaled_data = scaler_new.fit_transform(df[["Close"]])
     
-    # Create sequences
     X, y = create_sequences(scaled_data, seq_length=50)
     
     if len(X) == 0:
         raise ValueError("Dados insuficientes para criar sequências (mínimo 51 dias)")
     
-    # Convert to tensors
     X_t = torch.tensor(X, dtype=torch.float32)
     y_t = torch.tensor(y, dtype=torch.float32)
     
-    # Make predictions
     model.eval()
     with torch.no_grad():
         y_pred = model(X_t).numpy()
         y_true = y_t.numpy()
     
-    # Inverse transform
     y_pred_inv = scaler_new.inverse_transform(y_pred)
     y_true_inv = scaler_new.inverse_transform(y_true)
     
-    # Calculate metrics
     mse = float(np.mean((y_true - y_pred) ** 2))
     mae = float(np.mean(np.abs(y_true - y_pred)))
     rmse = float(np.sqrt(mse))
@@ -158,13 +143,11 @@ def predict_stock(
     ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
     r2 = float(1 - ss_res / ss_tot) if ss_tot > 0 else float("nan")
     
-    # Predict next price
     with torch.no_grad():
         last_seq = torch.tensor(scaled_data[-50:], dtype=torch.float32).unsqueeze(0)
         pred_next_scaled = model(last_seq).numpy()
         pred_next_price = scaler_new.inverse_transform(pred_next_scaled)[0][0]
     
-    # Generate plot
     plot_image = generate_plot_base64(
         y_true_inv.squeeze().tolist(),
         y_pred_inv.squeeze().tolist(),

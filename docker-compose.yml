@@ -1,10 +1,8 @@
-version: '3.8'
-
 services:
   api:
     build:
       context: .
-      dockerfile: api/Dockerfile
+      dockerfile: Dockerfile
     image: stock-lstm-api:latest
     container_name: stock-lstm-api
     ports:
@@ -14,12 +12,12 @@ services:
     environment:
       - PORT=8000
       - PYTHONUNBUFFERED=1
-      # S3 Configuration - Update these values
       - S3_BUCKET_NAME=vapor-stock-predictor-logs
       - S3_LOG_PREFIX=logs/
-      - AWS_REGION=us-east-1
+
       # AWS Credentials - IMPORTANT: Never commit these to git!
-      # Set them via .env file or directly in EC2
+
+      - AWS_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
     

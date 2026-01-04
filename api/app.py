@@ -27,14 +27,9 @@ except Exception as e:
     model = None
     scaler = None
 
-# ==================== LOGGER ====================
-# S3-only logging - all logs are stored in S3
-# Required env vars: S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 try:
     logger = PredictionLogger()
 except ValueError as e:
-    print(f"⚠️  Warning: {e}")
-    print("Application will continue but logging will fail without S3 configuration")
     logger = None
 
 # ==================== TEMPLATES ====================
@@ -48,7 +43,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -57,17 +51,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
 app.mount(
     "/static",
     StaticFiles(directory="/app/api/templates/static"),
     name="static"
 )
+
 # ==================== REQUEST/RESPONSE MODELS ====================
 class PredictionRequest(BaseModel):
     ticker: str
     start_date: str  # YYYY-MM-DD
     end_date: str    # YYYY-MM-DD
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "ticker": "AAPL",  # usa .SA como fallback automático se for brasileira
+                "start_date": "2023-01-01",
+                "end_date": "2024-01-01"
+            }
+        }
+    }
 
 class PredictionResponse(BaseModel):
     ticker: str
@@ -91,22 +95,17 @@ def root(request: Request):
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
-    """Retorna o dashboard de logs"""
     try:
-        # Get dashboard data from S3
         data = get_dashboard_data()
         
-        # Generate charts
         chart_ticker_distribution = create_ticker_distribution_chart(data)
         chart_daily_predictions = create_daily_predictions_chart(data)
         chart_execution_time = create_execution_time_chart(data)
         chart_r2_distribution = create_r2_distribution_chart(data)
         
-        # Calculate success rate
         total = data["total_predictions"]
         success_rate = round((data["successful"] / total * 100), 1) if total > 0 else 0
         
-        # Contexto passado para o template
         context = {
             "request": request,  # OBRIGATÓRIO para Jinja no FastAPI
             "total_predictions": data["total_predictions"],
@@ -132,41 +131,27 @@ def dashboard(request: Request):
             detail=f"Error generating dashboard: {str(e)}"
         )
 
-@app.get("/health")
-def health():
-    """Health check endpoint"""
-    return {
-        "status": "ok",
-        "model_loaded": model is not None,
-        "scaler_loaded": scaler is not None
-    }
+# @app.get("/health")
+# def health():
+#     """Health check endpoint"""
+#     return {
+#         "status": "ok",
+#         "model_loaded": model is not None,
+#         "scaler_loaded": scaler is not None
+#     }
 
 @app.post("/api/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest):
-    """
-    Faz previsão de preço de ação
-    
-    Args:
-        ticker: Símbolo da ação (ex: ABEV3, VALE3 para brasileiras ou MSFT, AAPL para internacionais)
-        start_date: Data inicial (YYYY-MM-DD)
-        end_date: Data final (YYYY-MM-DD)
-    
-    Returns:
-        PredictionResponse com resultados e gráfico
-    """
-    
     if model is None or scaler is None:
         raise HTTPException(status_code=500, detail="Model not loaded")
     
     try:
-        # Validate dates
         if request.start_date >= request.end_date:
             raise HTTPException(
                 status_code=400,
                 detail="Data inicial deve ser anterior à data final"
             )
         
-        # Make prediction
         start_time = time.time()
         result = predict_stock(
             ticker=request.ticker.upper(),
@@ -177,9 +162,6 @@ def predict(request: PredictionRequest):
         )
         duration = time.time() - start_time
         
-        print(f"✅ Prediction completed in {duration:.2f}s")
-        
-        # Log the prediction
         if logger:
             try:
                 log_info = logger.log_prediction(
@@ -191,12 +173,11 @@ def predict(request: PredictionRequest):
                     success=True
                 )
             except Exception as log_err:
-                print(f"⚠️  Warning: Failed to log prediction: {log_err}")
-        
+                log_err
+                
         return PredictionResponse(**result)
     
     except ValueError as e:
-        # Log the error
         if logger:
             try:
                 logger.log_prediction(
@@ -209,10 +190,9 @@ def predict(request: PredictionRequest):
                     error=str(e)
                 )
             except Exception as log_err:
-                print(f"⚠️  Warning: Failed to log error: {log_err}")
+                log_err
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
-        # Log the error
         if logger:
             try:
                 logger.log_prediction(
@@ -225,11 +205,11 @@ def predict(request: PredictionRequest):
                     error=str(e)
                 )
             except Exception as log_err:
-                print(f"⚠️  Warning: Failed to log error: {log_err}")
+                log_err
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"❌ Error: {e}")
-        # Log the error
+        e
+
         if logger:
             try:
                 logger.log_prediction(
@@ -242,12 +222,11 @@ def predict(request: PredictionRequest):
                     error=str(e)
                 )
             except Exception as log_err:
-                print(f"⚠️  Warning: Failed to log error: {log_err}")
+                log_err
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/info")
 def info():
-    """Retorna informações sobre o modelo"""
     return {
         "model_name": "Stock LSTM Predictor",
         "architecture": "LSTM com 2 camadas",
@@ -261,12 +240,6 @@ def info():
 
 @app.get("/api/logs/recent")
 def get_recent_logs(limit: int = 10):
-    """
-    Retorna logs recentes de previsões
-    
-    Args:
-        limit: Número máximo de logs a retornar (padrão: 10)
-    """
     try:
         if not logger:
             raise ValueError("Logger not configured. Please set S3_BUCKET_NAME environment variable.")
@@ -280,7 +253,6 @@ def get_recent_logs(limit: int = 10):
 
 @app.get("/api/logs/stats")
 def get_log_stats():
-    """Retorna estatísticas dos logs de previsões"""
     try:
         if not logger:
             raise ValueError("Logger not configured. Please set S3_BUCKET_NAME environment variable.")
